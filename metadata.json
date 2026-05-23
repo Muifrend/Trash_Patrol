@@ -1,0 +1,6 @@
+{
+  "name": "Trash Patrol",
+  "description": "Litter cleanup reporting and robot dispatch tracking application.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
