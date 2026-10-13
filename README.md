@@ -6,11 +6,11 @@ Trash Patrol connects an Android camera app to a LEGO SPIKE Prime robot. A user 
 
 🏆 **1st place out of 32 teams** — Google I/O Kickoff: Pre-World Cup Hack, May 23, 2026  
 **490/600 points · $2,000 team prize · Team Spike (Tunisia)**  
-[Read the published results](https://www.gmicloud.ai/en/blog/what-32-teams-built-for-the-world-cup-in-one-day) · [Watch the hackathon demo](https://www.youtube.com/shorts/33VFazESk8A)
+[Read the published results](https://www.gmicloud.ai/en/blog/what-32-teams-built-for-the-world-cup-in-one-day#:~:text=1st%20Place)
 
-[![Watch the recorded Trash Patrol hackathon demo](https://img.youtube.com/vi/33VFazESk8A/hqdefault.jpg)](https://www.youtube.com/shorts/33VFazESk8A)
+<a href="https://www.gmicloud.ai/en/blog/what-32-teams-built-for-the-world-cup-in-one-day#:~:text=1st%20Place"><img src="https://cdn.prod.website-files.com/6683d8c62e4e62685a8d91c8/6a1777ed35ca38900bf7290a_IMG_5817.jpg" alt="Team Spike's first-place award photo, published by GMI Cloud" width="600"></a>
 
-*Recorded hackathon demo — click the thumbnail to watch.*
+*First-place team photo from GMI Cloud's event recap — click to view the published result.*
 
 ## My contribution and team
 
@@ -69,7 +69,7 @@ This repository is the **main project overview and Android app**. The backend an
 
 ## Try it
 
-The [recorded demo](https://www.youtube.com/shorts/33VFazESk8A) shows the hackathon build.
+The [published event recap](https://www.gmicloud.ai/en/blog/what-32-teams-built-for-the-world-cup-in-one-day#:~:text=1st%20Place) records the winning hackathon build.
 
 To run the components locally:
 
