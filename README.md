@@ -1,90 +1,98 @@
-# 🏆 Trash Patrol — World Cup Edition
+# Trash Patrol — World Cup Edition
 
-## ⚽ Tactical Overview
-**Trash Patrol - World Cup Edition** is a native Android application built with Kotlin and Jetpack Compose. Styled as an digital football stadium tactics board, it serves as a high-fidelity field tool to report litter, coordinate virtual referee reviews, dispatch a "Robot Striker" to dispose of the target, and confirm goals (cleanups) on the pitch.
+**AI-powered litter reporting, robot dispatch, and cleanup verification.**
 
-With a midnight-turf color palette, referee penalty cards, and a custom-painted 2D soccer field tracker, this tool transforms municipal garbage cleanup into a competitive sport.
+Trash Patrol connects an Android camera app to a LEGO SPIKE Prime robot. A user photographs litter; Gemini through GMI Cloud classifies the image; a RocketRide pipeline dispatches the robot; and a second photo verifies the cleanup. The app presents mission progress as a soccer match.
 
----
+🏆 **1st place out of 32 teams** — Google I/O Kickoff: Pre-World Cup Hack, May 23, 2026  
+**490/600 points · $2,000 team prize · Team Spike (Tunisia)**  
+[Read the published results](https://www.gmicloud.ai/en/blog/what-32-teams-built-for-the-world-cup-in-one-day) · [Watch the hackathon demo](https://www.youtube.com/shorts/33VFazESk8A)
 
-## 🎨 Visual Identity & Theme
-- **Midnight Dark Arena background** (`#0D0D0D` / `#0F1411`) providing deep, high-contrast visual focus.
-- **Glaring Pitch Green accents** (`#00FF7F`) for active goals, successful sweeps, and clean marks.
-- **Vibrant Referee Colors**:
-  - 🟥 **Red Cards** (`#FF4444`) for immediate rejections, fouls, or network connection timeouts.
-  - 🟨 **Yellow Cards** (`#FF8C00`) to highlight caution states, timeouts, and crucial confirmation requests.
-- **World Cup Gold Trophy** (`#FFD700`) styling for headings, status banners, and robot indicators.
-- **Typography & Icons**: Consistent, bold Material 3 indicators, responsive typography layout, and customized inline sports symbols.
+[![Watch the recorded Trash Patrol hackathon demo](https://img.youtube.com/vi/33VFazESk8A/hqdefault.jpg)](https://www.youtube.com/shorts/33VFazESk8A)
 
----
+*Recorded hackathon demo — click the thumbnail to watch.*
 
-## 📱 Core Layouts & Screens
+## My contribution and team
 
-### 1️⃣ The Pitch Playground (Report Screen)
-The home kickoff of the app lets field agents snapshot new litter incidents:
-- **Glowing Shutter Button**: A large, interactive pulsing soccer ball that opens the default camera.
-- **Match Snapshot**: Displays a rounded photo preview bordered in stadium-green trim with quick cancellation triggers.
-- **Scouting Kickoff**: Sends a `multipart/form-data` packet to the coordinator including compressed JPEGs (85% quality) and device-level GPS coordinates.
-- **VAR Analysis Panel**: Shows a loading indicator tracking "Analyzing photo...".
-- **Referee Red Card Penalty**: If rejected, a distinct red player card displays the infraction reason (e.g. *"Image too blurry"* or *"No litter detected"*) alongside a "Try Again" setup.
+**[Andrzej Firek](https://github.com/Muifrend) — primary developer.** Implemented the Android app, backend orchestration, LEGO robot bridge, and integration between the components.
 
-### 2️⃣ The Match Tracker (Mission Screen)
-Once confirmed, the app transitions into the Live Match Tracker to track field activity:
-- **VAR State Monitor**: Displays raw server states (e.g., `dispatching`, `awaiting_bridge_callback`) in a monospace console chip to keep developer scouts updated.
-- **Live Match Scorecard**: Houses the primary human-readable status, detailing real-time robot operations.
-- **2D Custom Football Pitch Progress Canvas**: 
-  - A custom-drawn green soccer field featuring crisp white boundary lines, kickoff center-circle, and penalty boxes.
-  - Animates a **Robot Striker** (golden cup avatar) and a miniature rolling soccer ball dynamically along the field x-axis using bouncy spring physics as the match climbs from kickoff to goal completion.
-- **Scouting Verdict**: Displays classifier evaluations indicating **Litter Type**, **Scouting Confidence %**, and textual **Visual Evidence** details.
-- **Match Point (Confirmation Screen)**: When the robot completes its sweep, the state shifts to `awaiting_confirmation_photo`. A flashing yellow button prompts the user to take a cleanup confirmation photo. Once uploaded and certified, a large green success scorecard reports **GOAL DETECTED — CLEANUP VALIDATED ✓**.
+**Stephen Kelly and Rafael Sánchez — ideation.** Helped shape the project concept.
 
-### 3️⃣ Tactical Settings (Settings Screen)
-Accessible via the gold gear icon in the stadium taskbar:
-- **Coordinator URL Configuration**: Customize the backend target URL to adapt to local machines or live ngrok tunnels (default: `https://pachydermatous-alena-hyperbarbarous.ngrok-free.dev`).
-- **Test Connection**: Executes an asynchronous ping against the saved coordinator's `/health` endpoint and updates the scorecard dynamically with a green **Connected ✓** or red **Unreachable ✗** status.
-- **ngrok Interstitial Bypass**: Self-heals and bypasses ngrok browser warnings automatically.
+The project competed as **Team Spike**, representing Tunisia. The event recap lists the entry under “Spike” and describes the product as “Trash Patrol.”
 
----
+## How it works
 
-## 🛠️ API & Network Protocols
+1. **Report:** capture a photo in the Android app, with optional GPS coordinates.
+2. **Classify:** the FastAPI backend calls Gemini through GMI Cloud and rejects images that do not confirm trash.
+3. **Dispatch:** RocketRide sends a `SEARCH_AND_SWEEP` command to the laptop bridge.
+4. **Act:** the bridge sends the command over Bluetooth Low Energy to the Pybricks robot program.
+5. **Verify:** after the robot reports completion, the user submits a second photo; the backend asks Gemini whether the trash is gone.
 
-The app connects to your coordinator backend using optimized OkHttp / Retrofit configurations with a **30-second connection timeout**:
+```mermaid
+flowchart TD
+    A["Android app · Kotlin / Jetpack Compose"]
+    B["FastAPI backend · mission state"]
+    C["Gemini via GMI Cloud · photo classification and verification"]
+    D["RocketRide · robot dispatch pipeline"]
+    E["Laptop bridge · HTTP to Bluetooth Low Energy"]
+    F["LEGO SPIKE Prime · Pybricks"]
+    A -->|"Report and confirmation photos"| B
+    B -->|"Vision inference"| C
+    C -->|"Classification / verification"| B
+    B -->|"Confirmed mission"| D
+    D -->|"SEARCH_AND_SWEEP"| E
+    E -->|"3-byte command"| F
+    F -->|"Robot result"| E
+    E -->|"Dispatch response"| D
+    D -->|"Result"| B
+    A -->|"Poll mission status"| B
+```
 
-### 1. `POST /android/report`
-Submits a multipart request with location coordinates:
-- `image`: JPEG file compressed dynamically to `85%` quality.
-- `mission_id`: Generated UUID prefix (`cleanup-` followed by 8 characters).
-- `location`: Optional JSON coordinates if fine/coarse GPS scopes are accepted:
-  ```json
-  {"lat": 37.123, "lng": -122.456}
-  ```
+GPS accompanies the report as metadata. The robot uses local ultrasonic sensing; this prototype does not navigate to GPS coordinates. The soccer pitch is a mission-progress visualization.
 
-### 2. `GET /missions/{mission_id}`
-Active multi-threaded polling running at **2-second intervals** while the match is live.
-- **Network Alert System**: Displays a referee-themed alert at the bottom of the screen if connection drops, continuing attempt routines automatically.
-- **Timeout Mitigation**: Detects the lack of state variations for over 30 seconds and transitions to a custom timeout deck with an manual "Retry Sync Kick-off" prompt.
+## Code across three repositories
 
-### 3. `POST /android/confirmation`
-Submits the final post-cleanup scene:
-- `image`: Multipart JPEG validation file.
-- `mission_id`: Unique active ID.
+This repository is the **main project overview and Android app**. The backend and hardware bridge remain separate components with their own setup instructions.
 
----
+| Component | Repository | Responsibility |
+| --- | --- | --- |
+| Android app | **[Trash_Patrol](https://github.com/Muifrend/Trash_Patrol)** | Photo capture, optional location, soccer-themed UI, mission polling, confirmation photos |
+| Backend | [rocketride](https://github.com/Muifrend/rocketride) | FastAPI API, mission state, direct GMI vision calls, RocketRide dispatch |
+| Robot bridge | [LEGO_bridge](https://github.com/Muifrend/LEGO_bridge) | Laptop HTTP API, Bluetooth communication, Pybricks robot program |
 
-## 🚀 Sideloading, Debugging, and Safe Installation
+## Engineering choices
 
-If you encounter installation issues during development (such as standard code `255 Exception` security warnings on modern Xiaomi, Oppo, or corporate devices):
+- **Verify physical work with a second observation:** robot completion leads to a confirmation-photo request; it does not automatically count as a verified cleanup.
+- **Separate the interfaces:** the app speaks HTTP, the backend manages missions, and the bridge handles the hardware protocol.
+- **Keep mission state visible:** the app polls a mission ID and shows classification, dispatch, and verification progress.
+- **Support hardware-independent development:** the bridge has a mock mode for checking HTTP commands without a LEGO hub.
 
-1. **Enable USB Debugging (Security Settings)** under Developer Options if using MIUI/HyperOS, Oppo ColorOS, or Realme UI ROMs to authorize ADB to manage runtime policies.
-2. **Remove package install pre-grant parameters** (`-g` flag) if restricted by enterprise MDM profiles, letting the app's standard Compose runtime prompt users for dynamic Camera and GPS permissions upon initial launch.
+## Try it
 
----
+The [recorded demo](https://www.youtube.com/shorts/33VFazESk8A) shows the hackathon build.
 
-## 🏆 Development Dependencies
-These standard components are bundled using central version catalogs:
-- **Jetpack Compose & Material 3** — Stadium UI and responsive layout elements
-- **OkHttp & Retrofit** — Multiparts and high-speed network polling
-- **Coil** — Matches snapshot rendering and previews
-- **Google Play Services Location** — Smart coordinate tracking
-- **Accompanist Permissions** — Secure Camera and GPS runtime checks
-- **Kotlin Coroutines / StateFlow** — Multi-threaded state sync and loop handling
+To run the components locally:
+
+1. Set up the [LEGO bridge](https://github.com/Muifrend/LEGO_bridge#setup), starting with mock mode or a SPIKE Prime hub.
+2. Configure and start the [backend](https://github.com/Muifrend/rocketride#run-locally), including GMI credentials and a RocketRide engine for normal dispatch.
+3. Install the [checked-in hackathon debug APK](https://github.com/Muifrend/Trash_Patrol/raw/refs/heads/main/.build-outputs/app-debug.apk), or build the Android app using the [Android development guide](docs/ANDROID.md).
+4. In the app's Settings, enter the reachable backend URL and use **Test Connection** before reporting a photo. On a physical phone, use the laptop's LAN address or an active tunnel.
+
+The checked-in APK is a development snapshot, not a maintained release. A historic tunnel URL may still be present in the app; replace it in Settings.
+
+## Prototype scope
+
+This is a hackathon prototype for a controlled robot demonstration.
+
+- Mission state lives in backend memory and resets when the server restarts.
+- The robot uses ultrasonic sensing and a fixed search/sweep routine, without mapping or GPS navigation.
+- Vision classification and verification depend on the submitted photos and a configured model endpoint.
+- The app stops polling after 30 seconds without a state change. Long robot commands may need **Retry Sync**; the bridge also has a 20-second completion wait. See the component guides for these integration limits.
+- The backend and bridge are demo services without application-level authentication.
+
+## More detail
+
+- [Hackathon case study](HACKATHON.md)
+- [Android setup, screens, and API integration](docs/ANDROID.md)
+- [Backend development and API reference](https://github.com/Muifrend/rocketride/blob/main/docs/DEVELOPMENT.md)
+- [Robot wiring and command reference](https://github.com/Muifrend/LEGO_bridge#hardware-and-wiring)
