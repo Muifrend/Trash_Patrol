@@ -1,141 +1,55 @@
-# Trash Patrol — World Cup Edition
-### Hackathon Submission Document
+# Trash Patrol — hackathon case study
 
----
+[Project overview](README.md) · [Recorded demo](https://www.youtube.com/shorts/33VFazESk8A) · [Published results](https://www.gmicloud.ai/en/blog/what-32-teams-built-for-the-world-cup-in-one-day)
 
-## Overview
+## Event and result
 
-Trash Patrol is an autonomous trash detection and cleanup system built around a sense-decide-act-verify loop. Users report litter through a lightweight Android app, RocketRide handles the entire backend intelligence — image classification, mission orchestration, robot dispatch, and cleanup verification — and Gemini via GMI Cloud provides the visual reasoning at every decision point. The system is designed to be city-scale: anyone who wants a cleaner neighborhood can report trash in seconds, and the infrastructure handles the rest.
+Trash Patrol competed as **Team Spike (Tunisia)** at the **Google I/O Kickoff: Pre-World Cup Hack** on **May 23, 2026**.
 
----
+The [GMI Cloud recap](https://www.gmicloud.ai/en/blog/what-32-teams-built-for-the-world-cup-in-one-day) records **first place among 32 teams**, **490/600 points** across ten judges, and a **$2,000 team prize**.
 
-## Impact
+## Contribution
 
-Litter management is a universal urban problem. Current solutions rely on scheduled city crews or reactive 311-style complaint systems — both slow and expensive. Trash Patrol flips the model: make reporting frictionless for citizens, and let autonomous robots handle the physical response.
+**Andrzej Firek was the primary developer**, implementing the Android app, backend orchestration, LEGO bridge, and integration. **Stephen Kelly and Rafael Sánchez contributed to ideation.**
 
-If deployed at scale, this architecture could meaningfully reduce street-level litter in dense urban environments while lowering the labor cost of cleanup operations. The individual act of reporting is trivial; the system effect is compounding. The more people report, the more ground the robots cover, and the cleaner the city gets.
+## Product idea
 
----
+Make litter reporting quick, give the user visible progress while a robot acts, and verify that the reported trash is gone. The World Cup theme turns each cleanup into a match, with the robot as a striker and a successful verification as a goal.
 
-## Architecture
+## Implemented system
 
-The project is split into three deliberately separated layers:
+The system has three components:
 
-**1. Consumer App (Android)**
-A thin, purpose-built reporting interface. Users photograph suspected litter, attach GPS coordinates, and submit the report in seconds. The app is intentionally minimal — it exists to capture the report and hand it off. All intelligence lives in RocketRide downstream, which keeps the app easy to maintain and the core logic centralized and independently iterable.
+1. **Android app:** Kotlin and Jetpack Compose capture report and confirmation photos, attach optional GPS metadata, and display mission state on a soccer-themed interface.
+2. **Backend:** FastAPI manages an in-memory mission state machine and calls Gemini through GMI Cloud directly for image classification and cleanup verification. RocketRide runs the robot-dispatch pipeline.
+3. **Robot bridge:** a laptop HTTP API translates commands into three-byte Bluetooth messages for a LEGO SPIKE Prime hub running Pybricks. The hub controls the drive motors, ultrasonic sensor, and sweeper motor.
 
-**2. RocketRide Orchestration Layer**
-The core product. RocketRide owns the entire backend intelligence stack — it receives reports from Android, calls GMI Cloud to classify images with Gemini, manages the full mission state machine, dispatches the robot through its agentic pipeline, handles bridge callbacks, and calls GMI Cloud again to verify cleanup from the confirmation photo. Every AI decision and every state transition in the system runs through RocketRide.
+The source and setup links are in the [component table](README.md#code-across-three-repositories).
 
-The mission state machine covers the complete flow — from `received` through `classifying`, `confirmed`, `dispatching`, `awaiting_confirmation_photo`, `verifying_cleanup`, to terminal states `cleaned` or `rejected`. Android polls RocketRide's `/missions/{mission_id}` endpoint to render the correct screen at each stage.
+## Report → act → verify
 
-**3. Robot Bridge**
-A standardized interface layer RocketRide calls to move the robot. The physical hardware is fully abstracted — swapping out the robot platform requires no changes to the AI or dispatch logic.
+A report photo is classified before dispatch. If trash is confirmed, RocketRide sends `SEARCH_AND_SWEEP` to the bridge. The robot performs its local search/sweep routine and returns a result.
 
----
+A completion result prompts the user for a new photo. The backend then asks Gemini whether the trash has been removed. This separates the robot's own completion report from the visual verification step.
 
-## Use of AI
+## Engineering decisions
 
-AI is not a peripheral feature in Trash Patrol — it is the decision engine at every critical step of the pipeline, and RocketRide is the system that drives it.
+- **One mission ID across components** connects the app's status view to classification, dispatch, and verification.
+- **A hardware bridge** keeps Bluetooth and hub-specific code outside the mobile app and backend.
+- **A separate confirmation photo** closes the loop after physical action.
+- **Mock bridge mode** supports HTTP integration work without a connected LEGO robot.
 
-### RocketRide — The Core Orchestration Engine
+## What the prototype demonstrates
 
-RocketRide is the backbone of the entire system. It is responsible for:
+The hackathon demo connects mobile input, model inference, workflow dispatch, and physical robot control in one flow. It demonstrates local robot cleanup rather than city-scale autonomous deployment.
 
-- **Trash classification** — calling GMI Cloud's Gemini vision model on every incoming report photo and deciding whether a mission should proceed
-- **Mission lifecycle management** — owning all state transitions from report receipt through robot dispatch to final verification
-- **Agentic robot dispatch** — running the `robot_dispatch.pipe` pipeline that interprets the confirmed mission and issues the `SEARCH_AND_SWEEP` command to the robot
-- **Cleanup verification** — calling GMI Cloud a second time on the confirmation photo to independently verify the robot actually cleaned the target
+GPS is report metadata, not a navigation target. The pitch animation represents mission progress, not robot localization. Missions are stored in memory; timeout handling and unauthenticated demo APIs remain limitations. See [prototype scope](README.md#prototype-scope) for the current boundaries.
 
-The dispatch pipeline itself includes a webhook source, a question node for context framing, a RocketRide agent for task interpretation, a GMI LLM control node providing reasoning capability, and an HTTP tool node that posts the final command to the robot bridge. Each mission generates a fresh runtime `project_id` to prevent task collisions between concurrent missions.
+## Technologies
 
-The agent is constrained to issue exactly one command:
-
-```json
-{
-  "command": "SEARCH_AND_SWEEP",
-  "mission_id": "...",
-  "max_steps": 15
-}
-```
-
-This gives the agent full reasoning capability over the mission context while ensuring it produces a single, predictable physical action.
-
-### Google Gemini (via GMI Cloud) — Visual Reasoning
-
-Gemini is the multimodal model RocketRide calls at the two most important decision points.
-
-**Step 1 — Trash Classification**
-RocketRide sends the submitted photo (with GPS context) to Gemini as base64 image data and receives a strict JSON classification:
-
-```json
-{
-  "is_trash": "yes",
-  "trash_type": "cup",
-  "confidence": 0.95,
-  "rejection_reason": "",
-  "visual_evidence": "An empty clear plastic cup is sitting on the table."
-}
-```
-
-Gemini's judgment is the gate. If it confirms trash, RocketRide advances the mission to dispatch. If not, the mission is rejected with a human-readable reason surfaced in the Android UI.
-
-**Step 2 — Cleanup Verification**
-After the robot reports completion, RocketRide sends the confirmation photo to Gemini and receives an independent verdict:
-
-```json
-{
-  "cleaned": "cleaned",
-  "confidence": 0.95,
-  "reason": "",
-  "needs_retry": false
-}
-```
-
-RocketRide doesn't assume the robot succeeded — it verifies with Gemini. This closes the loop with visual ground truth.
-
-### GMI Cloud — Model Serving
-
-GMI Cloud provides the OpenAI-compatible inference endpoint RocketRide uses for all Gemini vision calls, configured via `GMI_API_KEY`, `GMI_BASE_URL`, and `GMI_VISION_MODEL`. The current model is `google/gemini-3.1-flash-lite-preview`. GMI serves inference at every AI-driven decision point in the RocketRide pipeline.
-
-### Google AI Studio — Prototyping & Development
-
-Google AI Studio served as the primary development environment for the Android app. Rather than writing boilerplate from scratch, natural language commands directed the coding agent to generate layouts, Jetpack Compose screens, and Gradle configurations in real time.
-
-Key contributions:
-- **Generative theming** — a single prompt ("make it World Cup themed") produced the full 2D football pitch canvas, referee card state transitions (red cards for rejections, yellow cards for caution states), and a Material 3 midnight-dark arena theme with pitch-green accents and World Cup gold typography.
-- **Live compilation feedback** — each change was immediately verified and installed on a browser-based streaming emulator, giving instant visual feedback without manual build cycles.
-- **Expert diagnostics** — when sideloading to a physical device triggered a `SecurityException` on ADB permission grants, AI Studio identified the root cause (Xiaomi MIUI/HyperOS shell restrictions blocking `INSTALL_GRANT_RUNTIME_PERMISSIONS`) and guided the fix via Jetpack Compose's Accompanist Permissions framework.
-- **Direct workspace edits** — the agent used `edit_file` and `multi_edit_file` tools directly in the project directory, keeping the package identifier, app name, and `metadata.json` in sync throughout development with no manual copy-pasting.
-
----
-
-## Technology Summary
-
-| Layer | Technology | Role |
-|---|---|---|
-| Core Orchestration | RocketRide | Full mission lifecycle: classification, dispatch, verification |
-| Visual AI | Google Gemini | Trash classification & cleanup verification |
-| Model Serving | GMI Cloud | OpenAI-compatible Gemini vision inference |
-| Consumer App | Android / Jetpack Compose | GPS-tagged litter reporting with live mission tracking |
-| Development | Google AI Studio | Generative prototyping, theming, diagnostics |
-
----
-
-## Core Loop
-
-```
-User photographs litter + GPS coordinates
-              ↓
-RocketRide calls Gemini → confirmed or rejected
-              ↓
-RocketRide pipeline dispatches robot via SEARCH_AND_SWEEP
-              ↓
-Robot executes mission, reports completion
-              ↓
-User submits confirmation photo
-              ↓
-RocketRide calls Gemini → cleanup verified, mission closed
-```
-
-> "RocketRide is the intelligence layer that ties everything together — it calls Gemini to see, uses its agentic pipeline to act, and calls Gemini again to verify. The Android app is the eyes on the street; RocketRide is the brain that turns a photo into a clean neighborhood."
+| Area | Technologies |
+| --- | --- |
+| Mobile | Kotlin, Jetpack Compose, Material 3, coroutines / StateFlow, Retrofit / OkHttp |
+| Backend | Python, FastAPI, RocketRide |
+| Vision | Google Gemini served through GMI Cloud |
+| Hardware | LEGO SPIKE Prime, Pybricks, Bluetooth Low Energy, Bleak |
